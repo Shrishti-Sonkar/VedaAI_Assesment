@@ -299,6 +299,13 @@ function QuestionPaper({ assignment }: { assignment: AssignmentRecord }) {
                     <strong>{question.marks} marks</strong>
                   </div>
                   <p>{question.text}</p>
+                  {question.type === "mcq" && question.options && question.options.length > 0 && (
+                    <ol className="mcqOptions" type="A" style={{ paddingLeft: "1.5rem", marginTop: "0.5rem" }}>
+                      {question.options.map((opt, oi) => (
+                        <li key={oi} style={{ marginBottom: "0.25rem" }}>{opt.slice(3)}</li>
+                      ))}
+                    </ol>
+                  )}
                 </li>
               ))}
             </ol>

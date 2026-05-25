@@ -25,6 +25,8 @@ export interface GeneratedQuestion {
   type: QuestionType;
   difficulty: Difficulty;
   marks: number;
+  options?: string[];
+  correctAnswer?: string;
 }
 
 export interface QuestionSection {
