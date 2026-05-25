@@ -244,11 +244,49 @@ function QuestionPaper({ assignment }: { assignment: AssignmentRecord }) {
     const [{ jsPDF }, html2canvas] = await Promise.all([import("jspdf"), import("html2canvas")]);
     const node = document.getElementById("paper");
     if (!node) return;
-    const canvas = await html2canvas.default(node, { scale: 2, backgroundColor: "#ffffff" });
+
+    // Render at 2× for crisp text
+    const canvas = await html2canvas.default(node, {
+      scale: 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      allowTaint: true,
+    });
+
     const pdf = new jsPDF("p", "mm", "a4");
-    const width = pdf.internal.pageSize.getWidth();
-    const height = (canvas.height * width) / canvas.width;
-    pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, width, height);
+    const pageW = pdf.internal.pageSize.getWidth();   // 210 mm
+    const pageH = pdf.internal.pageSize.getHeight();  // 297 mm
+
+    // Width of image on the PDF page (with 10 mm margins on each side)
+    const margin = 10;
+    const imgW = pageW - margin * 2;
+
+    // How many canvas px equal one PDF page height?
+    const pxPerMm = canvas.width / imgW;
+    const pageHeightPx = pageH * pxPerMm;           // canvas pixels per A4 page
+
+    let offsetPx = 0;
+    let isFirstPage = true;
+
+    while (offsetPx < canvas.height) {
+      // Create a slice canvas for this page
+      const sliceH = Math.min(pageHeightPx, canvas.height - offsetPx);
+      const sliceCanvas = document.createElement("canvas");
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sliceH;
+      const ctx = sliceCanvas.getContext("2d")!;
+      ctx.drawImage(canvas, 0, -offsetPx);
+
+      const imgData = sliceCanvas.toDataURL("image/png");
+      const imgH = (sliceH / pxPerMm);  // mm height of this slice
+
+      if (!isFirstPage) pdf.addPage();
+      pdf.addImage(imgData, "PNG", margin, margin, imgW, imgH);
+
+      offsetPx += sliceH;
+      isFirstPage = false;
+    }
+
     pdf.save(`${assignment.title.replace(/\s+/g, "-").toLowerCase()}-paper.pdf`);
   };
 
