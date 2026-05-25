@@ -10,7 +10,7 @@ export async function connectStore() {
   const uri = process.env.MONGODB_URI;
   if (!uri) return;
   try {
-    client = new MongoClient(uri, { serverSelectionTimeoutMS: 1200 });
+    client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
     await client.connect();
     collection = client.db().collection<AssignmentRecord>("assignments");
     await collection.createIndex({ id: 1 }, { unique: true });
