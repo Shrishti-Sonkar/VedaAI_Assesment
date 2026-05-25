@@ -71,6 +71,14 @@ server.listen(port, () => console.log(`VedaAI API running on http://localhost:${
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Promise Rejection:", reason);
+  // Don't exit - keep server running
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  // Don't exit - keep server running
+});
 
 async function shutdown() {
   await closeQueue();
