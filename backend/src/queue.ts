@@ -8,6 +8,8 @@ import type { AssignmentInput } from "./types.js";
 const queueName = "assessment-generation";
 let queue: Queue<AssignmentInput> | null = null;
 let worker: Worker<AssignmentInput> | null = null;
+let queueConnection: Redis | null = null;
+let workerConnection: Redis | null = null;
 
 export async function setupQueue() {
   const redisUrl = process.env.REDIS_URL;
@@ -16,19 +18,37 @@ export async function setupQueue() {
     return;
   }
   try {
-    const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: true });
-    await connection.connect();
-    queue = new Queue<AssignmentInput>(queueName, { connection });
+    // 1. Connection for Queue
+    queueConnection = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: true });
+    queueConnection.on("error", (err) => {
+      console.error("Redis Queue connection error:", err);
+    });
+    await queueConnection.connect();
+
+    // 2. Connection for Worker (must be separate!)
+    workerConnection = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: true });
+    workerConnection.on("error", (err) => {
+      console.error("Redis Worker connection error:", err);
+    });
+    await workerConnection.connect();
+
+    queue = new Queue<AssignmentInput>(queueName, { connection: queueConnection });
+    queue.on("error", (err) => console.error("BullMQ Queue error:", err));
+
     worker = new Worker<AssignmentInput>(
       queueName,
       (job) => processGeneration(job.id || "", job.data),
-      { connection }
+      { connection: workerConnection }
     );
-    console.log("Redis/BullMQ connected");
+    worker.on("error", (err) => console.error("BullMQ Worker error:", err));
+
+    console.log("Redis/BullMQ connected successfully");
   } catch (error) {
-    console.warn("Redis unavailable; jobs will run in-process");
+    console.error("Redis unavailable; falling back to in-process jobs:", error);
     queue = null;
     worker = null;
+    queueConnection = null;
+    workerConnection = null;
   }
 }
 
@@ -65,4 +85,6 @@ function delay(ms: number) {
 export async function closeQueue() {
   await worker?.close();
   await queue?.close();
+  await workerConnection?.quit().catch(() => undefined);
+  await queueConnection?.quit().catch(() => undefined);
 }
